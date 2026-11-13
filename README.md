@@ -71,7 +71,7 @@ backend/queries.py      loads the CSV, adds ownership labels, state filter
 backend/analyses.py     the four analyses, returned as plain rows
 templates/index.html    the story page
 static/js/story.js      builds every chapter from /api/hospitals
-static/css/story.css    styles; fonts are Anton, Archivo Black, Bricolage Grotesque, DM Mono and Fraunces (all OFL)
+static/css/story.css    styles; fonts are Anton, Archivo, Archivo Black, Bricolage Grotesque and Fraunces (all OFL)
 notebooks/              data cleaning
 tests/check_api.py      calls every endpoint and checks the at-risk counts against the raw CSV
 ```
