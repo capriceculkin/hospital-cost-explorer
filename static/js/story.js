@@ -494,6 +494,7 @@ async function start() {
     document.body.classList.toggle("nav-closed", !open);
     $("q-close").setAttribute("aria-expanded", open);
     $("q-close").title = open ? "Close the question list" : "Open the question list";
+    $("q-close").querySelector(".q-close-label").textContent = open ? "Close" : "Questions";
     $("q-close").querySelector(".sr").textContent = open ? "Close the question list" : "Open the question list";
     setTimeout(() => { if (current === "court") drawCourt(); if (current === "red") drawRed(); }, 380);  // redraw at the new width
   };
