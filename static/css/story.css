@@ -230,7 +230,8 @@ a { color: inherit; }
 
 /* App shell: question list on the left, one story at a time on the right ---- */
 
-body { display: grid; grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); height: 100vh; overflow: hidden; }
+body { display: grid; grid-template-columns: 340px minmax(0, 1fr); height: 100vh; overflow: hidden; transition: grid-template-columns .35s cubic-bezier(.3, .8, .3, 1); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .pane { height: 100vh; overflow-y: auto; overflow-x: hidden; position: relative; container-type: inline-size; }
 .pane > .ch[hidden] { display: none; }
 
@@ -248,6 +249,26 @@ body { display: grid; grid-template-columns: minmax(300px, 380px) minmax(0, 1fr)
 #q-list a:first-child i, #q-list li:first-child i { font-size: 17px; padding-top: 3px; }
 #q-list b { font: 700 16px/1.25 var(--text); }
 #q-list em { font-style: normal; font-size: 13.5px; line-height: 1.35; color: #36507E; margin-top: 2px; }
+/* close button: an x that turns into an arrow when the list is closed */
+.q-close { width: 38px; height: 38px; flex: none; border-radius: 50%; border: 2px solid var(--navy); background: var(--paper); color: var(--navy); cursor: pointer; display: grid; place-items: center; font: 400 24px/1 var(--text); transition: transform .35s, background .2s; }
+.q-close:hover { background: #fff; transform: rotate(90deg); }
+body.nav-closed .q-close { transform: rotate(45deg); }
+body.nav-closed .q-close:hover { transform: rotate(45deg) scale(1.08); }
+
+/* closed: a slim rail with just the numbers (wide screens only) */
+.rail-state { display: none; }
+@media (min-width: 981px) {
+  body.nav-closed { grid-template-columns: 76px minmax(0, 1fr); }
+  body.nav-closed .rail-state { display: block; width: 52px; padding: 6px 0; border: 0; border-radius: 999px; background: var(--paper); color: var(--navy); font: 700 12px var(--mono); font-variation-settings: "wdth" 82; letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }
+  body.nav-closed .questions { padding: 18px 10px; align-items: center; overflow: visible; }
+  body.nav-closed .q-top { padding: 0; flex-direction: column; gap: 14px; }
+  body.nav-closed .brand, body.nav-closed .showing, body.nav-closed #q-list b, body.nav-closed #q-list em, body.nav-closed .q-foot { display: none; }
+  body.nav-closed #q-list { align-items: center; margin-top: 8px; }
+  body.nav-closed #q-list a { grid-template-columns: 1fr; width: 52px; height: 52px; padding: 0; place-items: center; border-radius: 50%; }
+  body.nav-closed #q-list a:hover { transform: scale(1.08); }
+  body.nav-closed #q-list i { grid-row: auto; font-size: 22px; padding: 0; }
+  body.nav-closed #q-list li:first-child i { font-size: 14px; }
+}
 .q-foot { margin-top: auto; padding: 0 8px; font: 700 11px var(--mono); font-variation-settings: "wdth" 82; letter-spacing: .1em; text-transform: uppercase; opacity: .7; }
 
 /* Start tab */
@@ -282,6 +303,7 @@ body { display: grid; grid-template-columns: minmax(300px, 380px) minmax(0, 1fr)
   .pane { height: auto; overflow: visible; }
   .questions { position: sticky; top: 0; z-index: 30; padding: 12px 14px; gap: 10px; box-shadow: 0 6px 18px rgba(19,34,74,.18); }
   .q-toggle { display: inline-block; }
+  .q-close { display: none; }
   .brand { font-size: 28px; }
   #q-list, .q-foot { display: none; }
   body.menu-open #q-list { display: flex; max-height: 70vh; overflow-y: auto; }

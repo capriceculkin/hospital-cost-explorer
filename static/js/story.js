@@ -479,6 +479,7 @@ async function start() {
   }));
   $("thr").addEventListener("input", (e) => setThreshold(+e.target.value));
   $("state").addEventListener("change", (e) => {
+    $("rail-state").textContent = e.target.value || "All";
     settings.state = e.target.value; settings.pickedTomato = null; settings.openLine = null;
     settings.pickedState = e.target.value || null; pinned = null; $("court-tip").hidden = true;
     drawBill(true); drawSky(false);
@@ -488,6 +489,19 @@ async function start() {
   document.addEventListener("click", (e) => {             // tap anywhere else to unpin
     if (pinned && !e.target.closest(".tip")) { pinned = null; $("court-tip").hidden = true; drawCourt(); }
   });
+  // the list closes to a slim rail; it closes itself when a story opens
+  const setNav = (open) => {
+    document.body.classList.toggle("nav-closed", !open);
+    $("q-close").setAttribute("aria-expanded", open);
+    $("q-close").title = open ? "Close the question list" : "Open the question list";
+    $("q-close").querySelector(".sr").textContent = open ? "Close the question list" : "Open the question list";
+    setTimeout(() => { if (current === "court") drawCourt(); if (current === "red") drawRed(); }, 380);  // redraw at the new width
+  };
+  $("q-close").addEventListener("click", () => setNav(document.body.classList.contains("nav-closed")));
+  $("rail-state").addEventListener("click", () => { setNav(true); setTimeout(() => $("state").focus(), 360); });
+  window.addEventListener("hashchange", () => setNav((location.hash.slice(1) || "start") === "start"));
+  setNav((location.hash.slice(1) || "start") === "start");
+
   $("q-toggle").addEventListener("click", () => {           // the question list folds up on phones
     const open = document.body.classList.toggle("menu-open");
     $("q-toggle").setAttribute("aria-expanded", open);

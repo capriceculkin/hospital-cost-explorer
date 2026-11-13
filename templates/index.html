@@ -24,16 +24,18 @@
     <div class="q-top">
       <a class="brand" href="#start">Who pays?</a>
       <button class="q-toggle" id="q-toggle" aria-expanded="false" aria-controls="q-list">Questions</button>
+      <button class="q-close" id="q-close" aria-expanded="true" aria-controls="questions" title="Close the question list"><span aria-hidden="true">&times;</span><b class="sr">Close the question list</b></button>
+      <button class="rail-state" id="rail-state" title="Change the state">All</button>
     </div>
     <label class="showing">Showing
       <select id="state"><option value="">All states</option>{% for s in states %}<option value="{{ s }}">{{ s }}</option>{% endfor %}</select>
     </label>
     <ol id="q-list">
-      <li><a href="#start" data-tab="start"><i>Start</i><b>What is this?</b><em>How hospitals report their money to Medicare, and how to use this site</em></a></li>
-      <li><a href="#bill" data-tab="bill"><i>1</i><b>How much care goes unpaid?</b><em>The bill, itemized by who owns the hospital</em></a></li>
-      <li><a href="#court" data-tab="court"><i>2</i><b>Which hospitals are losing money?</b><em>Every hospital placed by its unpaid care and its profit</em></a></li>
-      <li><a href="#red" data-tab="red"><i>3</i><b>Who is hit hardest?</b><em>The hospitals giving the most free care while losing money</em></a></li>
-      <li><a href="#hit" data-tab="hit"><i>4</i><b>Who invests in health IT?</b><em>How few hospitals report any health IT assets</em></a></li>
+      <li><a href="#start" data-tab="start" title="What is this?"><i>Start</i><b>What is this?</b><em>How hospitals report their money to Medicare, and how to use this site</em></a></li>
+      <li><a href="#bill" data-tab="bill" title="How much care goes unpaid?"><i>1</i><b>How much care goes unpaid?</b><em>The bill, itemized by who owns the hospital</em></a></li>
+      <li><a href="#court" data-tab="court" title="Which hospitals are losing money?"><i>2</i><b>Which hospitals are losing money?</b><em>Every hospital placed by its unpaid care and its profit</em></a></li>
+      <li><a href="#red" data-tab="red" title="Who is hit hardest?"><i>3</i><b>Who is hit hardest?</b><em>The hospitals giving the most free care while losing money</em></a></li>
+      <li><a href="#hit" data-tab="hit" title="Who invests in health IT?"><i>4</i><b>Who invests in health IT?</b><em>How few hospitals report any health IT assets</em></a></li>
     </ol>
     <p class="q-foot">CMS hospital cost reports, fiscal year 2022</p>
   </nav>
