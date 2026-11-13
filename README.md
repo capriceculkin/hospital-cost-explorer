@@ -16,6 +16,8 @@ Built with Flask and pandas, with the charts drawn in plain SVG and JavaScript. 
 ![Out of bounds](docs/chapter2.png)
 ![In the red](docs/chapter3.png)
 
+**Live site:** https://capriceculkin.github.io/hospital-cost-explorer/
+
 ## Run it
 
 ```bash
@@ -24,6 +26,8 @@ python app.py
 ```
 
 Then open http://127.0.0.1:5000. The cleaned data ships with the repo, so there is nothing else to download.
+
+The live site is a static copy in `docs/`, built with `python tools/build_pages.py` (same page, with the data shipped as a file instead of coming from the API).
 
 To check the API without opening a browser:
 
@@ -82,6 +86,7 @@ static/css/story.css    styles; fonts are Anton, Archivo, Archivo Black, Bricola
 notebooks/              data cleaning
 tests/check_api.py      calls every endpoint and checks the at-risk counts against the raw CSV
 tests/check_page.js     clicks every control on the page and checks the result
+tools/build_pages.py    builds the static copy in docs/ for GitHub Pages
 ```
 
 ## Changes from the original class version
