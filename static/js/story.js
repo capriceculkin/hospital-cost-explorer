@@ -229,6 +229,20 @@ function drawCourt() {
   labelText(svg, L + 10, sy - 18, "↑ MAKING MONEY");
   labelText(svg, L + 10, sy + 32, "↓ LOSING MONEY");
 
+  // drag the sideline directly on the court (drawn under the balls so balls by the line can still be tapped)
+  const handle = el("rect", { x: sx - 16, y: T, width: 32, height: B - T, fill: "transparent", class: "handle" }, svg);
+  handle.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    // listen on the window: the court redraws while you drag, which replaces this handle
+    const move = (ev) => {
+      const box = $("court").getBoundingClientRect();
+      const frac = Math.max(0, Math.min(1, (ev.clientX - box.left - L) / (R - L)));
+      setThreshold(Math.round(Math.max(5, Math.min(25, frac * frac * X_MAX))));
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", () => window.removeEventListener("pointermove", move), { once: true });
+  });
+
   // the out hospitals as tennis balls
   for (const p of out) {
     const cx = X(p.burden), cy = Y(p.margin);
@@ -244,18 +258,6 @@ function drawCourt() {
     ball.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pin(e); } });
   }
 
-  // drag the sideline directly on the court
-  const handle = el("rect", { x: sx - 16, y: T, width: 32, height: B - T, fill: "transparent", class: "handle" }, svg);
-  handle.addEventListener("pointerdown", (e) => {
-    handle.setPointerCapture(e.pointerId);
-    const move = (ev) => {
-      const box = svg.getBoundingClientRect();
-      const frac = Math.max(0, Math.min(1, (ev.clientX - box.left - L) / (R - L)));
-      setThreshold(Math.round(Math.max(5, Math.min(25, frac * frac * X_MAX))));
-    };
-    handle.addEventListener("pointermove", move);
-    handle.addEventListener("pointerup", () => handle.removeEventListener("pointermove", move), { once: true });
-  });
 }
 
 function showTip(p, cx, cy, isPinned) {
@@ -265,11 +267,22 @@ function showTip(p, cx, cy, isPinned) {
   tip.innerHTML = `<b>${esc(titleCase(p.name))}</b><span class="chip" style="background:${GROUP_COLOR[g]}">${g}</span><br>${esc(titleCase(p.city))}, ${p.state}<br>
     ${pct(p.burden, 1)} of revenue in unpaid care<br>${pct(p.margin, 1)} margin${p.margin < Y_BOT ? " (below the court)" : ""}` +
     (isPinned ? `<br><button type="button" id="see-red">See it in the red ↓</button>` : "");
-  // keep the tip inside the court on every side
-  const w = 280, h = tip.offsetHeight || 150;
-  const left = cx + 18 + w > box.width ? cx - 18 - w : cx + 18;
-  tip.style.left = Math.max(0, left) + "px";
-  tip.style.top = Math.max(0, Math.min(cy - 30, box.height - h)) + "px";
+  // place the card beside the ball, never on top of it: right, then left, then below or above
+  tip.style.pointerEvents = isPinned ? "auto" : "none";        // a hover card can't block the tap
+  const w = Math.min(280, Math.max(190, box.width * 0.56));
+  tip.style.width = w + "px";
+  const h = tip.offsetHeight || 150;                             // measure after the width is set
+  let left, top;
+  if (cx + 18 + w <= box.width) { left = cx + 18; top = Math.max(0, Math.min(cy - 30, box.height - h)); }
+  else if (cx - 18 - w >= 0) { left = cx - 18 - w; top = Math.max(0, Math.min(cy - 30, box.height - h)); }
+  else {
+    left = Math.max(0, Math.min(cx - w / 2, box.width - w));
+    if (cy + 20 + h <= box.height) top = cy + 20;
+    else if (cy - 20 - h >= 0) top = cy - 20 - h;
+    else top = box.height + 8;                                   // no room anywhere: hang it just under the court
+  }
+  tip.style.left = left + "px";
+  tip.style.top = top + "px";
   if (isPinned) $("see-red").addEventListener("click", () => { settings.pickedTomato = p.name; location.hash = "red"; });
 }
 

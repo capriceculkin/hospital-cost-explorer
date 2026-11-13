@@ -31,6 +31,12 @@ To check the API without opening a browser:
 python tests/check_api.py
 ```
 
+To click through every button and filter on a desktop and a phone screen (needs Node and Playwright, with the app running):
+
+```bash
+node tests/check_page.js
+```
+
 ## What's in the data
 
 [CMS Hospital Provider Cost Report](https://data.cms.gov/provider-compliance/cost-report/hospital-provider-cost-report), fiscal year 2022: 6,064 hospitals across 50 states, DC and four territories, 117 columns. Public domain.
@@ -75,6 +81,7 @@ static/js/story.js      builds every chapter from /api/hospitals
 static/css/story.css    styles; fonts are Anton, Archivo, Archivo Black, Bricolage Grotesque and Fraunces (all OFL)
 notebooks/              data cleaning
 tests/check_api.py      calls every endpoint and checks the at-risk counts against the raw CSV
+tests/check_page.js     clicks every control on the page and checks the result
 ```
 
 ## Changes from the original class version
