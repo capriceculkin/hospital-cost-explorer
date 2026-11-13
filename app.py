@@ -6,7 +6,7 @@
 
 from flask import Flask, render_template, request, jsonify
 
-from backend.queries import get_states
+from backend.queries import get_states, get_hospital_rows
 from backend.analyses import (
     analysis_ownership_uncompensated_care,
     analysis_financial_scatter,
@@ -56,6 +56,12 @@ def list_analyses():
         {"id": "risk", "name": "Hospitals at risk",
          "parameters": {"state": "optional", "threshold": "integer 5 to 25, default 10"}},
     ]})
+
+
+@app.route("/api/hospitals")
+def api_hospitals():
+    # every hospital as a compact row; the page builds its charts from this
+    return jsonify(get_hospital_rows())
 
 
 @app.route("/api/states")

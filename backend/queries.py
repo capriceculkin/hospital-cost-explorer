@@ -61,3 +61,24 @@ def filter_by_state(data, state_code):
     if state_code and state_code != "all":
         return data[data["State Code"] == state_code].copy()
     return data
+
+
+# Compact hospital list for the page ----
+# One short row per hospital with only the fields the page needs. The page
+# does its own grouping, so the state filter and slider respond instantly.
+
+HOSPITAL_FIELDS = {
+    "Hospital Name": "name", "City": "city", "State Code": "state", "Type of Control": "control",
+    "Number of Beds": "beds", "Cost of Uncompensated Care": "uncomp", "Total Patient Revenue": "revenue",
+    "Net Income": "net_income", "Health Information Technology Designated Assets": "hit",
+    "Total Fixed Assets": "fixed_assets",
+}
+
+
+def get_hospital_rows():
+    data = finaldf[list(HOSPITAL_FIELDS)].rename(columns=HOSPITAL_FIELDS)
+    data = data.sort_values(["state", "name"])
+    return {
+        "fields": list(HOSPITAL_FIELDS.values()),
+        "rows": data.astype(object).where(pd.notna(data), None).values.tolist(),
+    }
