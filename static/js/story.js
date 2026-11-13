@@ -270,7 +270,7 @@ function showTip(p, cx, cy, isPinned) {
   const left = cx + 18 + w > box.width ? cx - 18 - w : cx + 18;
   tip.style.left = Math.max(0, left) + "px";
   tip.style.top = Math.max(0, Math.min(cy - 30, box.height - h)) + "px";
-  if (isPinned) $("see-red").addEventListener("click", () => { settings.pickedTomato = p.name; drawRed(); $("ch3").scrollIntoView(); });
+  if (isPinned) $("see-red").addEventListener("click", () => { settings.pickedTomato = p.name; location.hash = "red"; });
 }
 
 function setThreshold(v) {
@@ -435,13 +435,30 @@ function pickState(st) {
 }
 
 
-// Close ----
+// Tabs ----
+// One story shows at a time. The address bar keeps the open tab (#court),
+// so the back button and shared links land on the right story.
 
-function drawClose() {
-  $("c-total").textContent = money(ALL.reduce((s, h) => s + (h.uncomp ?? 0), 0));
-  $("c-out").textContent = commas(courtPoints(ALL).filter((p) => p.burden > 10 && p.margin < 0).length);
-  $("c-hit").textContent = commas(ALL.filter(withHit).length);
-  document.querySelectorAll(".flipper").forEach((f) => (f.onclick = () => f.classList.toggle("flipped")));
+const TABS = ["start", "bill", "court", "red", "hit"];
+let current = null;
+
+function showTab(name) {
+  if (!TABS.includes(name)) name = "start";
+  if (name === current) return;
+  current = name;
+  document.querySelectorAll(".pane > .ch").forEach((s) => (s.hidden = s.dataset.tab !== name));
+  document.querySelectorAll("#q-list a").forEach((a) => {
+    const on = a.dataset.tab === name;
+    a.classList.toggle("on", on);
+    if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+  });
+  // charts measure their own width, so draw them once their tab is visible
+  if (name === "court") drawCourt();
+  if (name === "red") drawRed();
+  const sec = $("tab-" + name);
+  sec.querySelectorAll(".tilt-in").forEach((n) => { n.classList.remove("in"); void n.offsetWidth; n.classList.add("in"); });
+  $("pane").scrollTo({ top: 0 }); window.scrollTo({ top: 0 });
+  document.body.classList.remove("menu-open"); $("q-toggle").setAttribute("aria-expanded", "false");
 }
 
 
@@ -450,8 +467,11 @@ function drawClose() {
 async function start() {
   const data = window.HOSPITALS || (await (await fetch("/api/hospitals")).json());
   ALL = data.rows.map((r) => Object.fromEntries(data.fields.map((f, i) => [f, r[i]])));
-  drawBill(true); drawCourt(); drawRed(); drawSky(true); drawClose();
+  $("s-n").textContent = commas(ALL.length);
+  drawBill(true); drawSky(true);
   wireReceipt();
+  showTab(location.hash.slice(1));
+  window.addEventListener("hashchange", () => showTab(location.hash.slice(1)));
 
   document.querySelectorAll(".pills button").forEach((b) => b.addEventListener("click", () => {
     document.querySelectorAll(".pills button").forEach((x) => x.classList.toggle("on", x === b));
@@ -461,25 +481,21 @@ async function start() {
   $("state").addEventListener("change", (e) => {
     settings.state = e.target.value; settings.pickedTomato = null; settings.openLine = null;
     settings.pickedState = e.target.value || null; pinned = null; $("court-tip").hidden = true;
-    drawBill(true); drawCourt(); drawRed(); drawSky(false);
+    drawBill(true); drawSky(false);
+    if (current === "court") drawCourt();
+    if (current === "red") drawRed();
   });
   document.addEventListener("click", (e) => {             // tap anywhere else to unpin
     if (pinned && !e.target.closest(".tip")) { pinned = null; $("court-tip").hidden = true; drawCourt(); }
   });
-  let t; window.addEventListener("resize", () => { clearTimeout(t); t = setTimeout(() => { drawCourt(); drawRed(); }, 150); });
-
-  // headlines swing in when they come on screen
-  const tilt = new IntersectionObserver((entries) => entries.forEach((e) => {
-    if (e.isIntersecting) { e.target.classList.add("in"); tilt.unobserve(e.target); }
-  }), { threshold: 0.15 });
-  document.querySelectorAll(".tilt-in").forEach((n) => tilt.observe(n));
-
-  // the dock dot follows whichever chapter crosses the middle of the screen
-  const dots = [...document.querySelectorAll(".dots a")];
-  const io = new IntersectionObserver((entries) => entries.forEach((e) => {
-    if (e.isIntersecting) dots.forEach((d, i) => d.classList.toggle("on", i === +e.target.dataset.ch - 1));
-  }), { rootMargin: "-50% 0px -50% 0px" });
-  document.querySelectorAll(".ch").forEach((s) => io.observe(s));
+  $("q-toggle").addEventListener("click", () => {           // the question list folds up on phones
+    const open = document.body.classList.toggle("menu-open");
+    $("q-toggle").setAttribute("aria-expanded", open);
+  });
+  let t; window.addEventListener("resize", () => { clearTimeout(t); t = setTimeout(() => {
+    if (current === "court") drawCourt();
+    if (current === "red") drawRed();
+  }, 150); });
 }
 
 start();

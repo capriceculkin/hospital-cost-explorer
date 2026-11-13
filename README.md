@@ -1,13 +1,14 @@
 # Who Pays? A hospital cost explorer
 
-An interactive story about the care hospitals give and never get paid for, built on the 2022 CMS Hospital Provider Cost Report (the financial filing every Medicare-certified hospital sends in each year). It runs as four poster-style chapters:
+An interactive site about the care hospitals give and never get paid for, built on the 2022 CMS Hospital Provider Cost Report (the financial filing every Medicare-certified hospital sends in each year). Each story is one plain question in the list on the left:
 
-1. **The Bill:** $40.6 billion in unpaid care, printed as a receipt itemized by who owns the hospital. Switch between per bed, % of revenue and per hospital.
-2. **Out of bounds:** every hospital is a ball on a tennis court. The horizontal line is break-even and the sideline is how much unpaid care is too much. Drag the sideline and the hospitals that are past it and losing money turn into tennis balls.
-3. **In the red:** those hospitals as hand-drawn tomatoes, one per hospital, sized by beds and grouped by owner. Tap one to see its numbers.
-4. **441.:** only 441 of 6,064 hospitals report any health IT assets. Each dot is a hospital, grouped by state.
+- **What is this?** How the cost reports work and how to use the site, with each story pinned up as a poster.
+- **How much care goes unpaid?** $40.6 billion in unpaid care, printed as a receipt itemized by who owns the hospital. Lines open up, and the receipt tilts and flips over.
+- **Which hospitals are losing money?** Every hospital is a ball on a tennis court. Drag the sideline and the hospitals past it that are losing money turn into tennis balls you can pin.
+- **Who is hit hardest?** Those hospitals as hand-drawn tomatoes, one per hospital, sized by beds and grouped by owner.
+- **Who invests in health IT?** Only 441 of 6,064 hospitals report any health IT assets. Each dot is a hospital, grouped by state, and state tiles flip over.
 
-The state picker at the bottom of the screen follows you through the story and redraws every chapter. The sideline you set on the court carries into chapter 3. Almost everything moves when you touch it: receipt lines open to show the top hospitals, the receipt tilts and flips over, balls spin and pin, tomatoes wobble, state tiles and the closing cards flip, and each chapter has a "how this is counted" note that opens.
+The state picker at the top of the list redraws every story for that state, and the sideline set on the court carries into the tomatoes. Each story has its own address (`#bill`, `#court`, `#red`, `#hit`) so links and the back button work.
 
 Built with Flask and pandas, with the charts drawn in plain SVG and JavaScript. Originally my final project for BIS 634 (Computational Methods for Informatics) at Yale, later rebuilt as a story.
 
