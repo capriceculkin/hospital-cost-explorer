@@ -7,7 +7,7 @@
 const NS = "http://www.w3.org/2000/svg";
 const $ = (id) => document.getElementById(id);
 
-const settings = { state: "", thr: 10, mode: "beds", pickedTomato: null, pickedState: null };
+const settings = { state: "", thr: 10, mode: "beds", pickedTomato: null, pickedState: null, openLine: null };
 let ALL = [];          // every hospital as an object
 
 
@@ -20,23 +20,25 @@ const CONTROL = {
   7: "Gov · federal", 8: "Gov · city & county", 9: "Gov · county", 10: "Gov · state",
   11: "Gov · hospital district", 12: "Gov · city", 13: "Gov · other",
 };
+const GROUPS = ["Government", "Non-profit", "For-profit"];
 const groupOf = (c) => (c <= 2 ? "Non-profit" : c <= 6 ? "For-profit" : "Government");
 const GROUP_CLASS = { "Non-profit": "np", "For-profit": "fp", "Government": "gov" };
+const GROUP_COLOR = { "Non-profit": "#2F5FC2", "For-profit": "#D99A1E", "Government": "#13224A" };
 
 
 // Formatting ----
 
 function money(x, digits = 1) {
   if (x < 0) return "-" + money(-x, digits);
-  const a = Math.abs(x);
-  if (a >= 1e9) return "$" + (x / 1e9).toFixed(digits) + "B";
-  if (a >= 1e6) return "$" + (x / 1e6).toFixed(digits) + "M";
-  if (a >= 1e3) return "$" + Math.round(x / 1e3) + "K";
+  if (x >= 1e9) return "$" + (x / 1e9).toFixed(digits) + "B";
+  if (x >= 1e6) return "$" + (x / 1e6).toFixed(digits) + "M";
+  if (x >= 1e3) return "$" + Math.round(x / 1e3) + "K";
   return "$" + Math.round(x);
 }
 const commas = (x) => Math.round(x).toLocaleString("en-US");
 const pct = (x, d = 0) => x.toFixed(d) + "%";
 const titleCase = (s) => (s || "").toLowerCase().replace(/\b[a-z]/g, (m) => m.toUpperCase());
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 function el(tag, attrs = {}, parent) {
   const node = document.createElementNS(NS, tag);
@@ -68,20 +70,24 @@ function countUp(node, to, fmt, ms = 900) {
 const inState = () => (settings.state ? ALL.filter((h) => h.state === settings.state) : ALL);
 const finite = (x) => x !== null && Number.isFinite(x);
 
-// average unpaid care per hospital by Type of Control; missing unpaid care counts as 0
+// one hospital's value on the receipt; missing unpaid care counts as 0
+function lineValue(h, mode) {
+  const u = h.uncomp ?? 0;
+  if (mode === "beds") return h.beds ? u / h.beds : null;
+  if (mode === "revenue") return h.revenue ? (u / h.revenue) * 100 : null;
+  return u;
+}
+
+// average by Type of Control, largest first
 function receiptLines(rows, mode) {
   const groups = {};
   for (const h of rows) {
-    const u = h.uncomp ?? 0;
-    let v;
-    if (mode === "beds") v = h.beds ? u / h.beds : null;
-    else if (mode === "revenue") v = h.revenue ? (u / h.revenue) * 100 : null;
-    else v = u;
+    const v = lineValue(h, mode);
     if (!finite(v)) continue;
-    (groups[h.control] ||= []).push(v);
+    (groups[h.control] ||= []).push({ h, v });
   }
   return Object.entries(groups)
-    .map(([c, vals]) => ({ control: +c, value: vals.reduce((a, b) => a + b, 0) / vals.length, n: vals.length }))
+    .map(([c, items]) => ({ control: +c, items, value: items.reduce((a, b) => a + b.v, 0) / items.length, n: items.length }))
     .sort((a, b) => b.value - a.value);
 }
 
@@ -101,34 +107,76 @@ const isOut = (p) => p.burden > settings.thr && p.margin < 0;
 
 // Chapter 1: the bill ----
 
+const fmtLine = (v) => (settings.mode === "revenue" ? pct(v, 2) : "$" + commas(v));
+
 function drawBill(animateTotal) {
   const rows = inState();
   const total = rows.reduce((s, h) => s + (h.uncomp ?? 0), 0);
-  const where = settings.state ? `hospitals in ${settings.state}` : "U.S. hospitals";
-  document.querySelector(".bill .where").textContent = where;
+  document.querySelector(".bill .where").textContent = settings.state ? `hospitals in ${settings.state}` : "U.S. hospitals";
   $("b-n").textContent = commas(rows.length);
   if (animateTotal) countUp($("b-total"), total, (v) => money(v)); else $("b-total").textContent = money(total);
 
   const lines = receiptLines(rows, settings.mode);
-  const fmt = settings.mode === "revenue" ? (v) => pct(v, 2) : (v) => "$" + commas(v);
   const max = Math.max(...lines.map((l) => l.value), 1);
   const label = { beds: "average per bed", revenue: "% of patient revenue", none: "average per hospital" }[settings.mode];
   $("r-sub").innerHTML = `${commas(rows.length)} hospitals · FY2022<br>${label}, by owner`;
   $("r-total").textContent = money(total);
-  $("r-lines").innerHTML = lines.map((l, i) => {
-    const g = groupOf(l.control);
-    return `<li class="${GROUP_CLASS[g]}" style="animation-delay:${i * 60}ms" title="${l.n} hospitals">
-      <div class="row"><span>${CONTROL[l.control]}</span><i></i><b>${fmt(l.value)}</b></div>
-      <div class="bar" style="width:${(100 * l.value) / max}%;animation-delay:${i * 60 + 120}ms"></div></li>`;
-  }).join("");
-  if (!document.querySelector(".r-legend")) {
-    $("receipt").querySelector(".r-total").insertAdjacentHTML("beforebegin",
-      `<div class="r-legend"><span><i style="background:#1E4632"></i>Gov</span><span><i style="background:#6E8F62"></i>Non-profit</span><span><i style="background:#B98B3E"></i>For-profit</span></div>`);
-  }
 
-  // one line that says what the receipt shows
-  const top = lines[0];
-  $("b-insight").textContent = top ? `Top of the bill: ${CONTROL[top.control].toLowerCase()} hospitals, at ${fmt(top.value)}.` : "";
+  const list = $("r-lines");
+  list.innerHTML = "";
+  lines.forEach((l, i) => {
+    const li = document.createElement("li");
+    li.className = GROUP_CLASS[groupOf(l.control)] + (settings.openLine === l.control ? " open" : "");
+    li.style.animationDelay = i * 55 + "ms";
+    li.innerHTML = `<button class="line" aria-expanded="${settings.openLine === l.control}">
+        <div class="row"><span>${CONTROL[l.control]}</span><i></i><b>${fmtLine(l.value)}</b><em>›</em></div>
+        <div class="bar" style="width:${(100 * l.value) / max}%;animation-delay:${i * 55 + 120}ms"></div></button>`;
+    if (settings.openLine === l.control) li.appendChild(lineDetail(l, total));
+    li.querySelector("button").addEventListener("click", () => {
+      settings.openLine = settings.openLine === l.control ? null : l.control;
+      drawBill(false);
+    });
+    list.appendChild(li);
+  });
+  drawReceiptBack(rows, total);
+}
+
+// what opens under a receipt line: how many hospitals, their share of the bill, the top three
+function lineDetail(l, total) {
+  const div = document.createElement("div");
+  div.className = "more";
+  const dollars = l.items.reduce((s, x) => s + (x.h.uncomp ?? 0), 0);
+  const top = l.items.slice().sort((a, b) => b.v - a.v).slice(0, 3);
+  div.innerHTML = `<p>${commas(l.n)} hospitals · ${money(dollars)} of the bill (${pct(total ? (100 * dollars) / total : 0, 1)})</p>` +
+    top.map((x) => `<p>↳ ${esc(titleCase(x.h.name))}, ${x.h.state}: ${fmtLine(x.v)}</p>`).join("");
+  return div;
+}
+
+function drawReceiptBack(rows, total) {
+  $("r-back").innerHTML = GROUPS.map((g) => {
+    const mine = rows.filter((h) => groupOf(h.control) === g);
+    const dollars = mine.reduce((s, h) => s + (h.uncomp ?? 0), 0);
+    return `<div class="grp" style="color:${GROUP_COLOR[g]}"><h4><span>${g}</span><span>${pct(total ? (100 * dollars) / total : 0)}</span></h4>
+      <p style="color:#13224A">${commas(mine.length)} hospitals (${pct(rows.length ? (100 * mine.length) / rows.length : 0)} of them) gave ${money(dollars)} of unpaid care</p></div>`;
+  }).join("");
+}
+
+// the receipt leans toward the pointer
+function wireReceipt() {
+  const stage = $("receipt-stage"), card = $("receipt-card");
+  stage.addEventListener("pointermove", (e) => {
+    if (e.pointerType !== "mouse") return;
+    const r = card.getBoundingClientRect();
+    card.style.setProperty("--ry", (((e.clientX - r.left) / r.width - 0.5) * 14).toFixed(1) + "deg");
+    card.style.setProperty("--rx", ((0.5 - (e.clientY - r.top) / r.height) * 10).toFixed(1) + "deg");
+  });
+  stage.addEventListener("pointerleave", () => { card.style.setProperty("--rx", "0deg"); card.style.setProperty("--ry", "0deg"); });
+  $("flip-btn").addEventListener("click", () => {
+    const on = card.classList.toggle("flipped");
+    $("flip-btn").setAttribute("aria-pressed", on);
+    card.querySelector(".front").setAttribute("aria-hidden", on);
+    card.querySelector(".back").setAttribute("aria-hidden", !on);
+  });
 }
 
 
@@ -137,10 +185,20 @@ function drawBill(animateTotal) {
 // margins are clipped to -60% and +40% so a few extreme hospitals stay on court.
 
 const X_MAX = 50, Y_TOP = 40, Y_BOT = -60;
+let pinned = null;
+
+function labelText(svg, x, y, text, anchor = "start") {
+  const t = el("text", { x, y, class: "lbl", "text-anchor": anchor }, svg);
+  t.textContent = text;
+  const b = t.getBBox();
+  const bg = el("rect", { x: b.x - 6, y: b.y - 3, width: b.width + 12, height: b.height + 6, rx: 4, class: "lbl-bg" });
+  svg.insertBefore(bg, t);
+  return t;
+}
 
 function drawCourt() {
   const svg = $("court");
-  const W = svg.clientWidth || 1200, H = svg.clientHeight || 620;
+  const W = svg.clientWidth || 1200, H = svg.clientHeight || 600;
   svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
   svg.innerHTML = "";
   const L = 8, R = W - 8, T = 8, B = H - 8;
@@ -151,49 +209,43 @@ function drawCourt() {
   const out = pts.filter(isOut);
   $("court-n").textContent = commas(pts.length);
   $("out-n").textContent = commas(out.length);
-  $("c-out").textContent = commas(courtPoints(ALL).filter((p) => p.burden > 10 && p.margin < 0).length);
 
   const sx = X(settings.thr), sy = Y(0);
-  el("rect", { x: sx, y: sy, width: R - sx, height: B - sy, fill: "#234C9F" }, svg);           // the out zone
-
-  // big word in the empty upper right, sized to fit
-  const size = Math.max(28, Math.min(64, (R - sx) * 0.16));
-  const word = el("text", { x: R - 12, y: T + size, class: "out-word", "text-anchor": "end", style: `font-size:${size}px` }, svg);
-  word.textContent = `${commas(out.length)} OUT`;
+  el("rect", { x: sx, y: sy, width: R - sx, height: B - sy, fill: "#244C9E" }, svg);          // the out zone
 
   const g = el("g", {}, svg);
   for (const p of pts) if (!isOut(p)) el("circle", { cx: X(p.burden), cy: Y(p.margin), r: 2.8, class: "dot" }, g);
 
   // the lines: break-even and the sideline
-  el("line", { x1: L, x2: R, y1: sy, y2: sy, stroke: "#F2EFD2", "stroke-width": 10 }, svg);
-  el("line", { x1: sx, x2: sx, y1: T, y2: B, stroke: "#F2EFD2", "stroke-width": 10 }, svg);
-  const lab1 = el("text", { x: L + 4, y: sy - 14, class: "lbl" }, svg); lab1.textContent = "↑ MAKING MONEY";
-  const lab2 = el("text", { x: L + 4, y: sy + 28, class: "lbl" }, svg); lab2.textContent = "↓ LOSING MONEY";
-  const lab3 = el("text", { x: R - 12, y: T + size + 30, class: "lbl", "text-anchor": "end" }, svg);
-  lab3.textContent = W < 700 ? `SIDELINE ${settings.thr}% →` : `SIDELINE: ${settings.thr}% OF REVENUE IN UNPAID CARE`;
+  el("line", { x1: L, x2: R, y1: sy, y2: sy, stroke: "#F5EEDC", "stroke-width": 10 }, svg);
+  el("line", { x1: sx, x2: sx, y1: T, y2: B, stroke: "#F5EEDC", "stroke-width": 10 }, svg);
+
+  // the count, tilted like a line call, in the open space above break-even
+  const size = Math.max(28, Math.min(68, (R - sx) * 0.16));
+  const word = el("text", { x: R - 12, y: T + size + 6, class: "out-word", "text-anchor": "end", "font-size": size,
+    transform: `rotate(-5 ${R - 12} ${T + size})` }, svg);
+  word.textContent = `${commas(out.length)} OUT`;
+  labelText(svg, R - 12, T + size + 58, W < 700 ? `SIDELINE ${settings.thr}% →` : `SIDELINE: ${settings.thr}% OF REVENUE IN UNPAID CARE`, "end");
+  labelText(svg, L + 10, sy - 18, "↑ MAKING MONEY");
+  labelText(svg, L + 10, sy + 32, "↓ LOSING MONEY");
 
   // the out hospitals as tennis balls
-  const tip = $("court-tip");
   for (const p of out) {
     const cx = X(p.burden), cy = Y(p.margin);
-    const ball = el("g", { class: "ball", tabindex: 0 }, svg);
+    const ball = el("g", { class: "ball" + (pinned === p.name ? " pinned" : ""), tabindex: 0, role: "button", "aria-label": titleCase(p.name) }, svg);
     el("ellipse", { cx: cx + 5, cy: cy + 9, rx: 10, ry: 4.5, fill: "#0b1f55", opacity: .35 }, ball);
-    el("circle", { cx, cy, r: 9.5, class: "b" }, ball);
-    el("path", { d: `M${cx - 7},${cy - 5} q7,6 14,0`, stroke: "#F7F9E2", "stroke-width": 1.6, fill: "none" }, ball);
-    const show = () => {
-      tip.hidden = false;
-      tip.innerHTML = `<b>${titleCase(p.name)}</b>${titleCase(p.city)}, ${p.state} · ${groupOf(p.control)}<br>${pct(p.burden, 1)} of revenue in unpaid care<br>${pct(p.margin, 1)} margin${p.margin < Y_BOT ? " (off the court)" : ""}`;
-      const box = svg.getBoundingClientRect();
-      const left = Math.min(cx + 18, box.width - 300);
-      tip.style.left = left + "px"; tip.style.top = Math.max(0, cy - 30) + "px";
-    };
-    ball.addEventListener("mouseenter", show); ball.addEventListener("focus", show);
-    ball.addEventListener("mouseleave", () => (tip.hidden = true)); ball.addEventListener("blur", () => (tip.hidden = true));
-    ball.addEventListener("click", () => { settings.pickedTomato = p.name; drawRed(); $("ch3").scrollIntoView(); });
+    const spin = el("g", { class: "spin" }, ball);
+    el("circle", { cx, cy, r: 9.5, fill: "#D8E24C" }, spin);
+    el("path", { d: `M${cx - 7},${cy - 5} q7,6 14,0 M${cx - 7},${cy + 5} q7,-6 14,0`, stroke: "#F7F9E2", "stroke-width": 1.4, fill: "none" }, spin);
+    ball.addEventListener("mouseenter", () => { if (!pinned) showTip(p, cx, cy, false); });
+    ball.addEventListener("mouseleave", () => { if (!pinned) $("court-tip").hidden = true; });
+    const pin = (e) => { e.stopPropagation(); pinned = p.name; drawCourt(); showTip(p, cx, cy, true); };
+    ball.addEventListener("click", pin);
+    ball.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pin(e); } });
   }
 
   // drag the sideline directly on the court
-  const handle = el("rect", { x: sx - 14, y: T, width: 28, height: B - T, fill: "transparent", class: "handle" }, svg);
+  const handle = el("rect", { x: sx - 16, y: T, width: 32, height: B - T, fill: "transparent", class: "handle" }, svg);
   handle.addEventListener("pointerdown", (e) => {
     handle.setPointerCapture(e.pointerId);
     const move = (ev) => {
@@ -206,12 +258,28 @@ function drawCourt() {
   });
 }
 
+function showTip(p, cx, cy, isPinned) {
+  const tip = $("court-tip"), box = $("court").getBoundingClientRect();
+  const g = groupOf(p.control);
+  tip.hidden = false;
+  tip.innerHTML = `<b>${esc(titleCase(p.name))}</b><span class="chip" style="background:${GROUP_COLOR[g]}">${g}</span><br>${esc(titleCase(p.city))}, ${p.state}<br>
+    ${pct(p.burden, 1)} of revenue in unpaid care<br>${pct(p.margin, 1)} margin${p.margin < Y_BOT ? " (below the court)" : ""}` +
+    (isPinned ? `<br><button type="button" id="see-red">See it in the red ↓</button>` : "");
+  // keep the tip inside the court on every side
+  const w = 280, h = tip.offsetHeight || 150;
+  const left = cx + 18 + w > box.width ? cx - 18 - w : cx + 18;
+  tip.style.left = Math.max(0, left) + "px";
+  tip.style.top = Math.max(0, Math.min(cy - 30, box.height - h)) + "px";
+  if (isPinned) $("see-red").addEventListener("click", () => { settings.pickedTomato = p.name; drawRed(); $("ch3").scrollIntoView(); });
+}
+
 function setThreshold(v) {
   if (v === settings.thr) return;
   settings.thr = v;
   $("thr").value = v;
   $("thr-label").textContent = v + "%";
   document.querySelectorAll(".thr-echo").forEach((n) => (n.textContent = v + "%"));
+  pinned = null; $("court-tip").hidden = true;
   drawCourt(); drawRed();
 }
 
@@ -222,9 +290,8 @@ function setThreshold(v) {
 function tomatoShape(parent, cx, cy, r, seed) {
   const rand = rng(seed);
   const g = el("g", { class: "tomato" }, parent);
-  // lumpy outline
   const n = 14, pts = [];
-  for (let i = 0; i < n; i++) {
+  for (let i = 0; i < n; i++) {          // lumpy outline
     const a = (i / n) * Math.PI * 2;
     const rr = r * (0.88 + rand() * 0.2) * (1 + 0.06 * Math.cos(a * 2));
     pts.push([cx + Math.cos(a) * rr * 1.08, cy + Math.sin(a) * rr * 0.94]);
@@ -235,19 +302,17 @@ function tomatoShape(parent, cx, cy, r, seed) {
     d += ` Q${p[0].toFixed(1)},${p[1].toFixed(1)} ${((p[0] + q[0]) / 2).toFixed(1)},${((p[1] + q[1]) / 2).toFixed(1)}`;
   }
   el("path", { d, fill: "#C8322A", class: "skin", filter: "url(#rough)" }, g);
-  // crayon scribble inside
-  for (let k = 0; k < Math.max(3, r / 5); k++) {
+  for (let k = 0; k < Math.max(3, r / 5); k++) {          // crayon scribble
     const y0 = cy - r * 0.6 + rand() * r * 1.2, x0 = cx - r * 0.7;
     el("path", { d: `M${x0},${y0} q${r * 0.4},${-r * 0.3 * rand()} ${r * 0.75},${r * 0.1} t${r * 0.7},${-r * 0.1}`,
-      stroke: rand() > 0.5 ? "#A8231D" : "#DC5145", "stroke-width": 1.4, fill: "none", opacity: 0.8 }, g);
+      stroke: rand() > 0.5 ? "#A82720" : "#DC5145", "stroke-width": 1.4, fill: "none", opacity: 0.8 }, g);
   }
-  // leaves and stem
-  for (let k = 0; k < 4; k++) {
+  for (let k = 0; k < 4; k++) {          // leaves and stem
     const a = -Math.PI / 2 + (k - 1.5) * 0.7 + (rand() - 0.5) * 0.3;
     el("path", { d: `M${cx},${cy - r * 0.8} q${Math.cos(a) * r * 0.3},${Math.sin(a) * r * 0.1} ${Math.cos(a) * r * 0.55},${Math.sin(a) * r * 0.35 + r * 0.15}`,
-      stroke: "#2E5A2A", "stroke-width": Math.max(2, r / 7), "stroke-linecap": "round", fill: "none" }, g);
+      stroke: "#3E6B3A", "stroke-width": Math.max(2, r / 7), "stroke-linecap": "round", fill: "none" }, g);
   }
-  el("path", { d: `M${cx},${cy - r * 0.8} q${r * 0.08},${-r * 0.3} ${-r * 0.05},${-r * 0.5}`, stroke: "#2E5A2A", "stroke-width": Math.max(2, r / 8), fill: "none", "stroke-linecap": "round" }, g);
+  el("path", { d: `M${cx},${cy - r * 0.8} q${r * 0.08},${-r * 0.3} ${-r * 0.05},${-r * 0.5}`, stroke: "#3E6B3A", "stroke-width": Math.max(2, r / 8), fill: "none", "stroke-linecap": "round" }, g);
   return g;
 }
 
@@ -262,31 +327,35 @@ function drawRed() {
     return;
   }
   const maxBeds = Math.max(...out.map((p) => p.beds || 10));
-  for (const group of ["Government", "Non-profit", "For-profit"]) {
+  for (const group of GROUPS) {
     const items = out.filter((p) => groupOf(p.control) === group).sort((a, b) => (b.beds || 0) - (a.beds || 0));
     const div = document.createElement("div");
     div.className = "basket";
-    div.innerHTML = `<h3>${group}<span>${items.length}</span></h3>`;
+    div.innerHTML = `<h3><span style="color:${GROUP_COLOR[group]}"><i style="background:${GROUP_COLOR[group]}"></i>${group}</span><span>${items.length}</span></h3>`;
     box.appendChild(div);
     if (!items.length) continue;
-    // simple row packing: radius from beds, wrap when a row fills up
+    // pack in rows: radius from beds, wrap when a row fills up
     const width = div.clientWidth || 300, gap = 8;
-    const radius = (p) => 16 + 36 * Math.sqrt((p.beds || 10) / maxBeds);
+    const radius = (p) => Math.min(width / 2 - 4, 16 + 36 * Math.sqrt((p.beds || 10) / maxBeds));
     let x = 0, y = 0, rowH = 0;
     const placed = items.map((p) => {
       const r = radius(p);
-      if (x + 2 * r > width) { x = 0; y += rowH + gap; rowH = 0; }
-      const spot = { p, r, cx: x + r, cy: y + r + 10 };
-      x += 2 * r + gap; rowH = Math.max(rowH, 2 * r + 10);
+      if (x > 0 && x + 2 * r > width) { x = 0; y += rowH + gap; rowH = 0; }
+      const spot = { p, r, cx: x + r, cy: y + r + 12 };
+      x += 2 * r + gap; rowH = Math.max(rowH, 2 * r + 12);
       return spot;
     });
-    const svg = el("svg", { viewBox: `0 0 ${width} ${y + rowH + 10}`, height: y + rowH + 10 }, div);
+    const svg = el("svg", { viewBox: `0 0 ${width} ${y + rowH + 12}`, height: y + rowH + 12 }, div);
     for (const s of placed) {
       const t = tomatoShape(svg, s.cx, s.cy, s.r, hash(s.p.name));
-      t.setAttribute("tabindex", 0);
+      t.setAttribute("tabindex", 0); t.setAttribute("role", "button"); t.setAttribute("aria-label", titleCase(s.p.name));
       el("title", {}, t).textContent = titleCase(s.p.name);
       if (settings.pickedTomato === s.p.name) t.classList.add("picked");
-      const pick = () => { settings.pickedTomato = s.p.name; showTomato(s.p); document.querySelectorAll(".tomato.picked").forEach((n) => n.classList.remove("picked")); t.classList.add("picked"); };
+      const pick = () => {
+        settings.pickedTomato = s.p.name;
+        document.querySelectorAll(".tomato.picked").forEach((n) => n.classList.remove("picked"));
+        t.classList.add("picked"); showTomato(s.p);
+      };
       t.addEventListener("click", pick);
       t.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } });
     }
@@ -298,47 +367,71 @@ function drawRed() {
 function showTomato(p) {
   const c = $("red-card");
   c.hidden = false;
-  const lost = p.net_income;
-  c.innerHTML = `<h4>${titleCase(p.name)}</h4><p>${titleCase(p.city)}, ${p.state} · ${CONTROL[p.control]} · ${p.beds ? commas(p.beds) + " beds" : "beds not reported"}</p>
+  c.classList.remove("flip"); void c.offsetWidth; c.classList.add("flip");   // replay the flip
+  c.innerHTML = `<h4>${esc(titleCase(p.name))}</h4><p>${esc(titleCase(p.city))}, ${p.state} · ${CONTROL[p.control]} · ${p.beds ? commas(p.beds) + " beds" : "beds not reported"}</p>
     <dl><div><dt>Unpaid care</dt><dd>${pct(p.burden, 1)}</dd></div><div><dt>Margin</dt><dd>${pct(p.margin, 1)}</dd></div>
-    <div><dt>Unpaid care, $</dt><dd>${money(p.uncomp)}</dd></div><div><dt>Net loss</dt><dd>${money(lost)}</dd></div></dl>`;
+    <div><dt>Unpaid care, $</dt><dd>${money(p.uncomp)}</dd></div><div><dt>Net loss</dt><dd>${money(p.net_income)}</dd></div></dl>`;
 }
 
 
 // Chapter 4: 441 ----
 
+const withHit = (h) => (h.hit ?? 0) > 0;
+
+function median(xs) {
+  if (!xs.length) return null;
+  const s = xs.slice().sort((a, b) => a - b), m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
 function drawSky(animate) {
-  const withHit = (h) => (h.hit ?? 0) > 0;
   const lit = ALL.filter(withHit).length;
   if (animate) countUp($("hit-n"), lit, (v) => commas(v) + "."); else $("hit-n").textContent = commas(lit) + ".";
   $("hit-of").textContent = commas(ALL.length);
-  $("c-hit").textContent = commas(lit);
 
-  const byState = {};
-  for (const h of ALL) (byState[h.state] ||= []).push(h);
-  const wrap = $("states");
-  wrap.innerHTML = "";
-  for (const st of Object.keys(byState).sort()) {
-    const rows = byState[st];
-    const cols = 14, cell = 6.4;
-    const div = document.createElement("div");
-    div.className = "st" + (settings.pickedState === st ? " on" : "");
-    div.innerHTML = `<span>${st}</span>`;
-    const svg = el("svg", { width: cols * cell, height: Math.ceil(rows.length / cols) * cell }, div);
-    rows.forEach((h, i) => el("circle", { cx: (i % cols) * cell + 3.2, cy: Math.floor(i / cols) * cell + 3.2, r: withHit(h) ? 2.7 : 1.9, class: withHit(h) ? "lit" : "" }, svg));
-    div.addEventListener("click", () => { settings.pickedState = settings.pickedState === st ? null : st; drawSky(false); });
-    wrap.appendChild(div);
+  // build the tiles once; picking a state only flips tiles, so the flip animates
+  if (!$("states").children.length) {
+    const byState = {};
+    for (const h of ALL) (byState[h.state] ||= []).push(h);
+    for (const st of Object.keys(byState).sort()) {
+      const rows = byState[st], nLit = rows.filter(withHit).length;
+      const cols = 14, cell = 6.4;
+      const btn = document.createElement("button");
+      btn.className = "st"; btn.dataset.state = st;
+      btn.setAttribute("aria-label", `${st}: ${nLit} of ${rows.length} hospitals report health IT assets`);
+      const inner = document.createElement("div"); inner.className = "inner";
+      const front = document.createElement("div"); front.className = "side f";
+      front.innerHTML = `<span class="code">${st}</span>`;
+      const svg = el("svg", { width: cols * cell, height: Math.max(cell, Math.ceil(rows.length / cols) * cell) }, front);
+      rows.forEach((h, i) => el("circle", { cx: (i % cols) * cell + 3.2, cy: Math.floor(i / cols) * cell + 3.2, r: withHit(h) ? 2.7 : 1.9, class: withHit(h) ? "lit" : "" }, svg));
+      const back = document.createElement("div"); back.className = "side b";
+      back.innerHTML = `<b>${nLit}</b>of ${rows.length}<br>${st}`;
+      inner.append(front, back); btn.appendChild(inner);
+      btn.addEventListener("click", () => pickState(settings.pickedState === st ? null : st));
+      $("states").appendChild(btn);
+    }
   }
-  wrap.classList.toggle("focus", !!settings.pickedState);
+  pickState(settings.pickedState);
+}
 
-  // what the picked state looks like
-  const st = settings.pickedState;
-  const rows = st ? byState[st] : ALL;
+function pickState(st) {
+  settings.pickedState = st;
+  document.querySelectorAll(".st").forEach((b) => {
+    const on = b.dataset.state === st;
+    b.classList.toggle("flipped", on); b.setAttribute("aria-pressed", on);
+  });
+  $("states").classList.toggle("focus", !!st);
+
+  // the line under the grid and the list you can open
+  const rows = st ? ALL.filter((h) => h.state === st) : ALL;
   const hitRows = rows.filter(withHit);
-  const shares = hitRows.map((h) => (h.fixed_assets ? (h.hit / h.fixed_assets) * 100 : null)).filter(finite).sort((a, b) => a - b);
-  const median = shares.length ? (shares.length % 2 ? shares[(shares.length - 1) / 2] : (shares[shares.length / 2 - 1] + shares[shares.length / 2]) / 2) : null;
-  $("state-card").innerHTML = `${st ? `<b>${st}</b> &nbsp;` : "<b>All states</b> &nbsp;"}${commas(hitRows.length)} of ${commas(rows.length)} hospitals report health IT assets` +
-    (median !== null ? ` · for the median one, IT is ${pct(median, 1)} of fixed assets` : "");
+  const shares = hitRows.map((h) => (h.fixed_assets ? (h.hit / h.fixed_assets) * 100 : null)).filter(finite);
+  const med = median(shares);
+  $("state-card").innerHTML = `<b>${st || "All states"}</b> &nbsp;${commas(hitRows.length)} of ${commas(rows.length)} hospitals report health IT assets` +
+    (med !== null ? `<br>for the middle one, IT is ${pct(med, 1)} of its fixed assets` : "");
+  $("state-list-label").textContent = st ? `See the ${hitRows.length} in ${st}` : `See all ${hitRows.length}`;
+  $("state-hospitals").innerHTML = hitRows.slice().sort((a, b) => b.hit - a.hit)
+    .map((h) => `<li>${esc(titleCase(h.name))}, ${h.state}: ${money(h.hit)}</li>`).join("");
 }
 
 
@@ -346,35 +439,46 @@ function drawSky(animate) {
 
 function drawClose() {
   $("c-total").textContent = money(ALL.reduce((s, h) => s + (h.uncomp ?? 0), 0));
+  $("c-out").textContent = commas(courtPoints(ALL).filter((p) => p.burden > 10 && p.margin < 0).length);
+  $("c-hit").textContent = commas(ALL.filter(withHit).length);
+  document.querySelectorAll(".flipper").forEach((f) => (f.onclick = () => f.classList.toggle("flipped")));
 }
 
 
 // Wiring ----
 
-function drawAll(first) { drawBill(first); drawCourt(); drawRed(); drawSky(first); drawClose(); }
-
 async function start() {
   const data = window.HOSPITALS || (await (await fetch("/api/hospitals")).json());
   ALL = data.rows.map((r) => Object.fromEntries(data.fields.map((f, i) => [f, r[i]])));
-  drawAll(true);
+  drawBill(true); drawCourt(); drawRed(); drawSky(true); drawClose();
+  wireReceipt();
 
   document.querySelectorAll(".pills button").forEach((b) => b.addEventListener("click", () => {
     document.querySelectorAll(".pills button").forEach((x) => x.classList.toggle("on", x === b));
-    settings.mode = b.dataset.mode; drawBill(false);
+    settings.mode = b.dataset.mode; settings.openLine = null; drawBill(false);
   }));
   $("thr").addEventListener("input", (e) => setThreshold(+e.target.value));
   $("state").addEventListener("change", (e) => {
-    settings.state = e.target.value; settings.pickedTomato = null;
-    settings.pickedState = e.target.value || null;
+    settings.state = e.target.value; settings.pickedTomato = null; settings.openLine = null;
+    settings.pickedState = e.target.value || null; pinned = null; $("court-tip").hidden = true;
     drawBill(true); drawCourt(); drawRed(); drawSky(false);
+  });
+  document.addEventListener("click", (e) => {             // tap anywhere else to unpin
+    if (pinned && !e.target.closest(".tip")) { pinned = null; $("court-tip").hidden = true; drawCourt(); }
   });
   let t; window.addEventListener("resize", () => { clearTimeout(t); t = setTimeout(() => { drawCourt(); drawRed(); }, 150); });
 
-  // light up the dock dot for the chapter on screen
+  // headlines swing in when they come on screen
+  const tilt = new IntersectionObserver((entries) => entries.forEach((e) => {
+    if (e.isIntersecting) { e.target.classList.add("in"); tilt.unobserve(e.target); }
+  }), { threshold: 0.15 });
+  document.querySelectorAll(".tilt-in").forEach((n) => tilt.observe(n));
+
+  // the dock dot follows whichever chapter crosses the middle of the screen
   const dots = [...document.querySelectorAll(".dots a")];
   const io = new IntersectionObserver((entries) => entries.forEach((e) => {
     if (e.isIntersecting) dots.forEach((d, i) => d.classList.toggle("on", i === +e.target.dataset.ch - 1));
-  }), { threshold: 0.45 });
+  }), { rootMargin: "-50% 0px -50% 0px" });
   document.querySelectorAll(".ch").forEach((s) => io.observe(s));
 }
 

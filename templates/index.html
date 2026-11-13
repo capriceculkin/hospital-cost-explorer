@@ -17,8 +17,6 @@
       <feComposite in="SourceGraphic" in2="m" operator="in" result="w"/>
       <feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="5" result="t"/>
       <feDisplacementMap in="w" in2="t" scale="4"/></filter>
-    <filter id="grain"><feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="3" stitchTiles="stitch"/>
-      <feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .5 0"/></filter>
   </svg>
 
   <!-- Chapter 1: the bill -->
@@ -26,25 +24,38 @@
     <div class="ch-inner bill-grid">
       <div class="bill-left">
         <p class="kicker">Chapter 1 of 4 &middot; CMS hospital cost reports, fiscal year 2022</p>
-        <h1 class="giant">The<br>Bill</h1>
+        <h1 class="giant tilt-in">The<br>Bill</h1>
         <p class="lead">In 2022, <span class="where">U.S. hospitals</span> gave <b class="count" id="b-total">$0</b> worth of care they were never paid for.</p>
-        <p class="body">That is charity care plus bad debt, from <span id="b-n">6,064</span> hospitals' own filings with Medicare. The receipt splits it by who owns the hospital.</p>
+        <p class="body">That is charity care plus bad debt, from <span id="b-n">6,064</span> hospitals' own filings with Medicare. The receipt splits it by who owns the hospital. Tap any line to open it up.</p>
         <div class="pills" role="group" aria-label="How to measure">
           <button data-mode="beds" class="on">Per bed</button>
           <button data-mode="revenue">% of revenue</button>
           <button data-mode="none">Per hospital</button>
         </div>
-        <p class="body small" id="b-insight"></p>
+        <details class="how">
+          <summary><i></i>How this is counted</summary>
+          <p>Each line is the average hospital of that ownership type. Per bed divides each hospital's unpaid care by its beds; % of revenue divides it by patient revenue. Hospitals that left unpaid care blank count as zero, the same as the cost report total.</p>
+        </details>
       </div>
-      <div class="receipt-wrap">
-        <div class="receipt" id="receipt">
-          <p class="r-title">Unpaid care</p>
-          <p class="r-sub" id="r-sub"></p>
-          <ol id="r-lines"></ol>
-          <div class="r-total"><span>Total</span><span id="r-total"></span></div>
-          <p class="r-sub">No change given</p>
-          <div class="r-code" aria-hidden="true"></div>
+      <div class="receipt-stage" id="receipt-stage">
+        <div class="receipt-card" id="receipt-card">
+          <div class="receipt face front">
+            <p class="r-title">Unpaid care</p>
+            <p class="r-sub" id="r-sub"></p>
+            <ol id="r-lines"></ol>
+            <div class="r-legend"><span><i class="gov"></i>Government</span><span><i class="np"></i>Non-profit</span><span><i class="fp"></i>For-profit</span></div>
+            <div class="r-total"><span>Total</span><span id="r-total"></span></div>
+            <p class="r-sub">No change given</p>
+            <div class="r-code" aria-hidden="true"></div>
+          </div>
+          <div class="receipt face back" aria-hidden="true">
+            <p class="r-title">Who's on the bill</p>
+            <p class="r-sub">hospitals by owner</p>
+            <div id="r-back"></div>
+            <p class="r-sub" style="margin-top:18px">Thank you for your care</p>
+          </div>
         </div>
+        <button class="flip-btn" id="flip-btn" aria-pressed="false">Flip the receipt <span>&#8635;</span></button>
       </div>
     </div>
     <a class="handoff" href="#ch2">Some hospitals can absorb that bill. Some can't. &darr;</a>
@@ -55,18 +66,24 @@
     <div class="ch-inner">
       <p class="kicker">Chapter 2 of 4 &middot; who is losing money</p>
       <div class="court-head">
-        <h2 class="title">Every hospital is a ball on the court.</h2>
-        <p class="body">Further right, more of its revenue goes to unpaid care. Below the white line, it lost money in 2022. Drag the sideline to decide how much unpaid care is too much. Anything past it and below break-even is <b>out</b>.</p>
+        <h2 class="title tilt-in">Every hospital is a ball on the court.</h2>
+        <div>
+          <p class="body">Further right, more of its revenue goes to unpaid care. Below the white line, it lost money in 2022. Drag the sideline to decide how much unpaid care is too much. Anything past it and below break-even is <b>out</b>. Tap a ball to pin it.</p>
+          <details class="how">
+            <summary><i></i>How the court is drawn</summary>
+            <p>Left to right is unpaid care as a share of patient revenue, on a square-root scale so the long tail fits. Up and down is net margin, kept between -60% and +40%; a few hospitals with bigger losses sit on the bottom edge. Only hospitals that report unpaid care, revenue and net income are on the court.</p>
+          </details>
+        </div>
       </div>
       <div class="court-box">
-        <svg id="court" viewBox="0 0 1200 640" preserveAspectRatio="none" role="img" aria-label="Scatter of hospitals by unpaid care and margin"></svg>
+        <svg id="court" role="img" aria-label="Scatter of hospitals by unpaid care and margin"></svg>
         <div class="tip" id="court-tip" hidden></div>
       </div>
       <div class="court-foot">
         <label class="slider">Sideline at <b id="thr-label">10%</b> of revenue
           <input type="range" id="thr" min="5" max="25" step="1" value="10">
         </label>
-        <p class="readout"><b id="out-n">0</b> hospitals out of bounds, of <span id="court-n">0</span> with the numbers to plot</p>
+        <p class="readout"><b id="out-n">0</b> hospitals out of bounds, of <span id="court-n">0</span> on the court</p>
       </div>
     </div>
     <a class="handoff" href="#ch3">Let's meet the ones that are out. &darr;</a>
@@ -78,49 +95,53 @@
       <div class="ch-inner red-grid">
         <div class="red-left">
           <p class="kicker">Chapter 3 of 4 &middot; the hospitals out of bounds</p>
-          <h2 class="stamp"><span id="red-n">33</span><br>in the<br>red</h2>
+          <h2 class="stamp tilt-in"><span id="red-n">33</span><br>in the<br>red</h2>
           <p class="body">Each tomato is one hospital, sized by its beds. They give more than <b class="thr-echo">10%</b> of their revenue in unpaid care and lost money doing it. If they cut services or close, the uninsured and Medicaid patients they serve feel it first.</p>
-          <p class="body small">Tap a tomato to see the hospital.</p>
+          <p class="body small">Tap a tomato to see the hospital. Move the sideline back on the court and this basket changes.</p>
         </div>
         <div class="red-right">
           <div class="baskets" id="baskets"></div>
-          <div class="card" id="red-card" hidden></div>
+          <div class="card-stage"><div class="card" id="red-card" hidden></div></div>
         </div>
       </div>
     </div>
-    <a class="handoff dark" href="#ch4">When money is that tight, what about the technology? &darr;</a>
+    <a class="handoff" href="#ch4">When money is that tight, what about the technology? &darr;</a>
   </section>
 
   <!-- Chapter 4: 441 -->
   <section class="ch sky" id="ch4" data-ch="4">
     <div class="ch-inner sky-inner">
-      <p class="kicker light">Chapter 4 of 4 &middot; where the health IT money is</p>
-      <p class="huge" id="hit-n">441.</p>
+      <p class="kicker">Chapter 4 of 4 &middot; where the health IT money is</p>
+      <p class="huge tilt-in" id="hit-n">441.</p>
       <p class="sky-sub">hospitals report any health IT assets, out of <span id="hit-of">6,064</span>.</p>
-      <p class="body center">Health IT assets are the electronic records, networks and hardware a hospital owns. Each dot is a hospital, grouped by state. Tap a state.</p>
+      <p class="body center">Health IT assets are the electronic records, networks and hardware a hospital owns. Each dot is a hospital, grouped by state. Tap a state to flip it.</p>
       <div class="states" id="states"></div>
       <div class="state-card" id="state-card"></div>
+      <details class="how center-how" id="state-list">
+        <summary><i></i><span id="state-list-label">See the hospitals that report it</span></summary>
+        <ol id="state-hospitals"></ol>
+      </details>
     </div>
-    <a class="handoff light" href="#ch5">So who pays? &darr;</a>
+    <a class="handoff" href="#ch5">So who pays? &darr;</a>
   </section>
 
   <!-- Close -->
   <section class="ch close" id="ch5" data-ch="5">
     <div class="ch-inner">
-      <h2 class="giant small-giant">The bill is<br>still open.</h2>
+      <h2 class="giant small-giant tilt-in">The bill is<br>still open.</h2>
       <div class="recap">
-        <div><b id="c-total"></b><span>in care nobody paid for</span></div>
-        <div><b id="c-out"></b><span>hospitals out of bounds at a 10% sideline</span></div>
-        <div><b id="c-hit"></b><span>report any health IT assets</span></div>
+        <button class="flipper"><span class="f front"><b id="c-total"></b><em>in care nobody paid for</em></span><span class="f back"><em>Charity care plus bad debt, from each hospital's 2022 cost report.</em></span></button>
+        <button class="flipper"><span class="f front"><b id="c-out"></b><em>hospitals out of bounds at a 10% sideline</em></span><span class="f back"><em>More than 10% of revenue in unpaid care, and a negative margin.</em></span></button>
+        <button class="flipper"><span class="f front"><b id="c-hit"></b><em>report any health IT assets</em></span><span class="f back"><em>Out of 6,064 hospitals. Reporting these assets is uneven, so this is a floor, not a census.</em></span></button>
       </div>
       <div class="notes">
         <div>
           <h3>Where this comes from</h3>
-          <p>CMS <a href="https://data.cms.gov/provider-compliance/cost-report/hospital-provider-cost-report" target="_blank" rel="noopener">Hospital Provider Cost Report</a>, fiscal year 2022, public domain. Unpaid care is the cost of uncompensated care (charity care plus bad debt). Margin is net income over patient revenue. Hospitals missing a number are left out of the chart that needs it.</p>
+          <p>CMS <a href="https://data.cms.gov/provider-compliance/cost-report/hospital-provider-cost-report" target="_blank" rel="noopener">Hospital Provider Cost Report</a>, fiscal year 2022, public domain. Unpaid care is the cost of uncompensated care (charity care plus bad debt). Margin is net income over patient revenue.</p>
         </div>
         <div>
           <h3>Use the data</h3>
-          <p><code>/api/hospitals</code> &middot; <code>/api/summary_stats</code> &middot; <code>/api/ownership</code> &middot; <code>/api/scatter</code> &middot; <code>/api/hit_capital</code> &middot; <code>/api/risk</code>. Add <code>?state=CT</code> to any of them.</p>
+          <p><code>/api/hospitals</code>, <code>/api/summary_stats</code>, <code>/api/ownership</code>, <code>/api/scatter</code>, <code>/api/hit_capital</code> and <code>/api/risk</code>. Add <code>?state=CT</code> to any of them.</p>
         </div>
         <div>
           <h3>Made by</h3>
@@ -132,10 +153,10 @@
 
   <!-- One control that follows you through the story -->
   <nav class="dock" aria-label="Story controls">
-    <label>Showing
+    <label><span class="lbl-text">Showing</span>
       <select id="state"><option value="">All states</option>{% for s in states %}<option value="{{ s }}">{{ s }}</option>{% endfor %}</select>
     </label>
-    <span class="dots" id="dots"><a href="#ch1"></a><a href="#ch2"></a><a href="#ch3"></a><a href="#ch4"></a><a href="#ch5"></a></span>
+    <span class="dots" id="dots"><a href="#ch1" aria-label="Chapter 1"></a><a href="#ch2" aria-label="Chapter 2"></a><a href="#ch3" aria-label="Chapter 3"></a><a href="#ch4" aria-label="Chapter 4"></a><a href="#ch5" aria-label="Close"></a></span>
   </nav>
 
   <script src="{{ url_for('static', filename='js/story.js') }}"></script>
